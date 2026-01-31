@@ -1,0 +1,111 @@
+# Variables for Ghost Infrastructure
+
+variable "aws_region" {
+  description = "AWS region to deploy resources"
+  type        = string
+  default     = "ap-southeast-2"
+}
+
+variable "project_name" {
+  description = "Project name used for resource naming"
+  type        = string
+  default     = "ghost-blog"
+}
+
+variable "environment" {
+  description = "Environment (dev, staging, prod)"
+  type        = string
+  default     = "prod"
+}
+
+# Domain Configuration
+variable "domain_name" {
+  description = "Primary domain for the blog (e.g., blog.example.com)"
+  type        = string
+}
+
+# EC2 Configuration
+variable "ec2_instance_type" {
+  description = "EC2 instance type"
+  type        = string
+  default     = "t3.small" # 2 vCPU, 2GB RAM
+}
+
+variable "ec2_volume_size" {
+  description = "Root volume size in GB"
+  type        = number
+  default     = 20
+}
+
+# RDS Configuration
+variable "db_instance_class" {
+  description = "RDS instance class"
+  type        = string
+  default     = "db.t4g.micro" # 2 vCPU, 1GB RAM - cheapest option
+}
+
+variable "db_allocated_storage" {
+  description = "RDS allocated storage in GB"
+  type        = number
+  default     = 20
+}
+
+variable "db_name" {
+  description = "Database name"
+  type        = string
+  default     = "ghost"
+}
+
+variable "db_username" {
+  description = "Database master username"
+  type        = string
+  default     = "ghost_admin"
+}
+
+# S3 Configuration
+variable "s3_bucket_name" {
+  description = "S3 bucket name for Ghost content (must be globally unique)"
+  type        = string
+}
+
+# Email Configuration
+variable "ses_region" {
+  description = "AWS region for SES (where SES is configured)"
+  type        = string
+  default     = "us-east-1"
+}
+
+variable "ses_from_email" {
+  description = "Email address for sending transactional emails via SES"
+  type        = string
+}
+
+variable "ses_credentials_secret_name" {
+  description = "Secrets Manager secret name containing SES SMTP credentials (keys: ses_smtp_user, ses_smtp_password)"
+  type        = string
+}
+
+variable "ses_credentials_secret_region" {
+  description = "AWS region where the SES credentials secret is stored"
+  type        = string
+}
+
+# Network Configuration
+variable "vpc_cidr" {
+  description = "CIDR block for VPC"
+  type        = string
+  default     = "10.0.0.0/16"
+}
+
+variable "allowed_ssh_cidrs" {
+  description = "CIDR blocks allowed to SSH to EC2 (your IP address)"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+# Ghost Configuration
+variable "ghost_version" {
+  description = "Ghost version to deploy"
+  type        = string
+  default     = "5" # Latest Ghost 5.x
+}

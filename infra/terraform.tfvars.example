@@ -1,0 +1,40 @@
+# Ghost Blog Infrastructure Variables
+# Copy this file to terraform.tfvars and fill in your values
+
+# AWS Configuration
+aws_region = "ap-southeast-2"  # e.g. us-east-1, eu-west-1, ap-southeast-2
+
+# Project Configuration
+project_name = "ghost-blog"
+environment  = "prod"
+
+# Domain Configuration
+domain_name = "blog.example.com"  # Your blog domain (DNS managed elsewhere, e.g. Squarespace)
+
+# EC2 Configuration (key pair created by Terraform, private key in Secrets Manager)
+ec2_instance_type = "t3.small"  # 2 vCPU, 2GB RAM
+ec2_volume_size   = 20  # GB
+
+# Allow SSH from your IP (optional - SSM Session Manager is available regardless)
+# Find your IP: curl ifconfig.me
+allowed_ssh_cidrs = []  # Example: ["203.0.113.0/32"]
+
+# RDS Configuration
+db_instance_class    = "db.t4g.micro"  # 2 vCPU, 1GB RAM - cheapest with 2 vCPU
+db_allocated_storage = 20  # GB
+db_name              = "ghost"
+db_username          = "ghost_admin"
+
+# S3 Configuration (bucket name must be globally unique)
+s3_bucket_name = "ghost-blog-content-your-unique-id"
+
+# Email Configuration (SES)
+ses_region     = "us-east-1"
+ses_from_email = "noreply@example.com"  # Must be verified in SES
+
+# SES credentials from Secrets Manager (secret must have keys: ses_smtp_user, ses_smtp_password)
+ses_credentials_secret_name   = "aws-secrets"
+ses_credentials_secret_region = "us-east-1"
+
+# Ghost Configuration
+ghost_version = "5"
