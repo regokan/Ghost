@@ -38,7 +38,7 @@ Terraform configuration for deploying Ghost blog on AWS.
 3. **Domain** with DNS access (for pointing to EC2 IP)
 4. **SES** verified domain/email for transactional emails
 
-Terraform creates the EC2 key pair and writes the private key to **infra/ghost-key.pem** at apply (file is gitignored). A copy is also stored in Secrets Manager as backup.
+Terraform creates the EC2 key pair and writes the private key to **infra/{project_name}-environment-key.pem** at apply (file is gitignored). A copy is also stored in Secrets Manager as backup.
 
 ## Quick Start
 
@@ -101,11 +101,11 @@ Visit `https://your-domain.com/ghost/` to set up your Ghost admin account. No ne
 
 ### Via SSH
 
-After `terraform apply`, the key is at `infra/ghost-key.pem`. From `infra/`:
+After `terraform apply`, the key is at `infra/${project_name}-${environment}.pem`. From `infra/`:
 
 ```bash
 cd infra
-ssh -i ghost-key.pem ec2-user@<EC2_PUBLIC_IP>
+ssh -i ${project_name}-${environment}.pem ec2-user@<EC2_PUBLIC_IP>
 ```
 
 Or run: `terraform output ssh_connect_command` and use that.

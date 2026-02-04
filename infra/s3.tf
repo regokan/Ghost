@@ -65,21 +65,21 @@ resource "aws_s3_bucket_cors_configuration" "content" {
   }
 }
 
-# Bucket policy for CloudFront access
+# Bucket policy for CloudFront OAC (must exist after distribution so ARN is valid)
 resource "aws_s3_bucket_policy" "content" {
   bucket = aws_s3_bucket.content.id
+
+  depends_on = [aws_cloudfront_distribution.content]
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowCloudFrontAccess"
-        Effect = "Allow"
-        Principal = {
-          Service = "cloudfront.amazonaws.com"
-        }
-        Action   = "s3:GetObject"
-        Resource = "${aws_s3_bucket.content.arn}/*"
+        Sid       = "AllowCloudFrontOAC"
+        Effect    = "Allow"
+        Principal = { Service = "cloudfront.amazonaws.com" }
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.content.arn}/*"
         Condition = {
           StringEquals = {
             "AWS:SourceArn" = aws_cloudfront_distribution.content.arn

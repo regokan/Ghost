@@ -14,18 +14,18 @@ resource "aws_key_pair" "ghost" {
   }
 }
 
-# Save private key locally (infra/ghost-key.pem, gitignored) so you can SSH after apply
+# Save private key locally (infra/${project_name}-${environment}.pem, gitignored) so you can SSH after apply
 resource "local_file" "ghost_private_key" {
-  filename             = "${path.module}/ghost-key.pem"
+  filename             = "${path.module}/${var.project_name}-${var.environment}.pem"
   content              = tls_private_key.ghost.private_key_pem
   file_permission      = "0400"
   directory_permission = "0700"
 }
 
-# Save same private key in Secrets Manager (same key as ghost-key.pem)
+# Save same private key in Secrets Manager (same key as ${project_name}-${environment}.pem)
 resource "aws_secretsmanager_secret" "ec2_private_key" {
   name        = "${var.project_name}/${var.environment}/ec2-ssh-private-key"
-  description = "EC2 SSH private key (same as infra/ghost-key.pem). Stored in Secrets Manager and locally."
+  description = "EC2 SSH private key (same as infra/{project_name}-{environment}.pem). Stored in Secrets Manager and locally."
 
   tags = {
     Name = "${var.project_name}-ec2-private-key"
