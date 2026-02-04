@@ -7,19 +7,9 @@ echo "=========================================="
 echo "Ghost Blog EC2 Setup"
 echo "=========================================="
 
-# From Terraform
-AWS_REGION="${aws_region}"
-PROJECT_NAME="${project_name}"
-ENVIRONMENT="${environment}"
-DOMAIN_NAME="${domain_name}"
-DB_HOST="${db_host}"
-DB_NAME="${db_name}"
-DB_USERNAME="${db_username}"
-S3_BUCKET="${s3_bucket}"
-S3_REGION="${s3_region}"
-CLOUDFRONT_URL="${cloudfront_url}"
-SES_REGION="${ses_region}"
-SES_FROM_EMAIL="${ses_from_email}"
+# From Terraform (needed at runtime)
+DB_CREDENTIALS_SECRET_NAME="${db_credentials_secret_name}"
+DB_CREDENTIALS_SECRET_REGION="${db_credentials_secret_region}"
 SES_CREDENTIALS_SECRET_NAME="${ses_credentials_secret_name}"
 SES_CREDENTIALS_SECRET_REGION="${ses_credentials_secret_region}"
 
@@ -30,7 +20,7 @@ systemctl enable docker
 systemctl start docker
 
 # Docker Compose
-DOCKER_COMPOSE_VERSION="v2.24.0"
+DOCKER_COMPOSE_VERSION="v5.0.2"
 curl -L "https://github.com/docker/compose/releases/download/$${DOCKER_COMPOSE_VERSION}/docker-compose-linux-x86_64" -o /usr/local/bin/docker-compose
 chmod +x /usr/local/bin/docker-compose
 ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
@@ -40,112 +30,120 @@ curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
 unzip -q awscliv2.zip && ./aws/install && rm -rf awscliv2.zip aws
 dnf install -y jq 2>/dev/null || true
 
-# DB password from SSM (retry: IAM instance profile can take a moment at boot)
-DB_PASSWORD=""
+# DB secret JSON (key: db_password)
+DB_SECRET_JSON=""
 for i in 1 2 3 4 5 6 7 8 9 10; do
-  DB_PASSWORD=$(aws ssm get-parameter \
-    --name "/$${PROJECT_NAME}/$${ENVIRONMENT}/db-password" \
-    --with-decryption --query 'Parameter.Value' --output text --region "$${AWS_REGION}" 2>/dev/null) && break
-  echo "Waiting for SSM (attempt $i/10)..."
+  DB_SECRET_JSON=$(aws secretsmanager get-secret-value \
+    --secret-id "$${DB_CREDENTIALS_SECRET_NAME}" \
+    --region "$${DB_CREDENTIALS_SECRET_REGION}" \
+    --query SecretString --output text 2>/dev/null) && break
+  echo "Waiting for Secrets Manager (attempt $i/10)..."
   sleep 15
 done
-if [ -z "$${DB_PASSWORD}" ]; then
-  echo "ERROR: Could not get DB password from SSM. Check IAM and parameter name."
+if [ -z "$${DB_SECRET_JSON}" ] || [ "$${DB_SECRET_JSON}" = "null" ]; then
+  echo "ERROR: Could not get DB secret from Secrets Manager. Check IAM and secret name."
   exit 1
 fi
+DB_PASSWORD=$(echo "$${DB_SECRET_JSON}" | jq -r '.db_password // empty')
+if [ -z "$${DB_PASSWORD}" ]; then
+  echo "ERROR: Secret must contain 'db_password'."
+  exit 1
+fi
+
+# SMTP secret JSON (keys: ses_smtp_username, ses_smtp_password)
+SMTP_SECRET_JSON=""
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  SMTP_SECRET_JSON=$(aws secretsmanager get-secret-value \
+    --secret-id "$${SES_CREDENTIALS_SECRET_NAME}" \
+    --region "$${SES_CREDENTIALS_SECRET_REGION}" \
+    --query SecretString --output text 2>/dev/null) && break
+  echo "Waiting for Secrets Manager SMTP secret (attempt $i/10)..."
+  sleep 15
+done
+if [ -z "$${SMTP_SECRET_JSON}" ] || [ "$${SMTP_SECRET_JSON}" = "null" ]; then
+  echo "ERROR: Could not get SMTP secret from Secrets Manager. Check IAM and secret name."
+  exit 1
+fi
+SES_USER=$(echo "$${SMTP_SECRET_JSON}" | jq -r '.ses_smtp_username // empty')
+SES_PASS=$(echo "$${SMTP_SECRET_JSON}" | jq -r '.ses_smtp_password // empty')
 
 mkdir -p /opt/ghost
 cd /opt/ghost
 
-# Ghost config
+# Ghost config (values from Terraform; DB password and SES auth filled at runtime below)
+# paths.contentPath must point at the volume so custom adapters (e.g. S3) in content/adapters are found
 cat > config.production.json << 'GHOSTCONF'
 {
-  "url": "https://DOMAIN_PLACEHOLDER",
+  "url": "https://${domain_name}",
   "server": { "port": 2368, "host": "0.0.0.0" },
+  "paths": { "contentPath": "/var/lib/ghost/content" },
   "database": {
     "client": "mysql",
     "connection": {
-      "host": "DBHOST_PLACEHOLDER",
+      "host": "${db_host}",
       "port": 3306,
-      "user": "DBUSER_PLACEHOLDER",
-      "password": "DBPASS_PLACEHOLDER",
-      "database": "DBNAME_PLACEHOLDER"
+      "user": "${db_username}",
+      "password": "",
+      "database": "${db_name}"
     }
   },
   "mail": {
     "transport": "SMTP",
     "options": {
-      "host": "email-smtp.SESREGION_PLACEHOLDER.amazonaws.com",
+      "host": "email-smtp.${ses_region}.amazonaws.com",
       "port": 587,
       "secure": false,
-      "auth": { "user": "SESUSER_PLACEHOLDER", "pass": "SESPASS_PLACEHOLDER" }
+      "auth": { "user": "", "pass": "" }
     },
-    "from": "SESFROM_PLACEHOLDER"
+    "from": "${ses_from_email}"
   },
   "storage": {
     "active": "s3",
     "s3": {
-      "bucket": "S3BUCKET_PLACEHOLDER",
-      "region": "S3REGION_PLACEHOLDER",
-      "cdnUrl": "CDNURL_PLACEHOLDER",
+      "bucket": "${s3_bucket}",
+      "region": "${s3_region}",
+      "cdnUrl": "${cloudfront_url}",
       "staticFileURLPrefix": "content/images",
       "multipartUploadThresholdBytes": 5242880,
       "multipartChunkSizeBytes": 5242880
     },
     "media": {
       "adapter": "s3",
-      "bucket": "S3BUCKET_PLACEHOLDER",
-      "region": "S3REGION_PLACEHOLDER",
-      "cdnUrl": "CDNURL_PLACEHOLDER",
+      "bucket": "${s3_bucket}",
+      "region": "${s3_region}",
+      "cdnUrl": "${cloudfront_url}",
       "staticFileURLPrefix": "content/media",
       "multipartUploadThresholdBytes": 5242880,
       "multipartChunkSizeBytes": 5242880
     },
     "files": {
       "adapter": "s3",
-      "bucket": "S3BUCKET_PLACEHOLDER",
-      "region": "S3REGION_PLACEHOLDER",
-      "cdnUrl": "CDNURL_PLACEHOLDER",
+      "bucket": "${s3_bucket}",
+      "region": "${s3_region}",
+      "cdnUrl": "${cloudfront_url}",
       "staticFileURLPrefix": "content/files",
       "multipartUploadThresholdBytes": 5242880,
       "multipartChunkSizeBytes": 5242880
     }
-  }
+  },
+  "logging": { "level": "info", "transports": ["stdout"] }
 }
 GHOSTCONF
 
-# Replace placeholders (DB host may include :3306)
-DB_HOST_ONLY="$${DB_HOST%%:*}"
-sed -i "s|DOMAIN_PLACEHOLDER|$${DOMAIN_NAME}|g" config.production.json
-sed -i "s|DBHOST_PLACEHOLDER|$${DB_HOST_ONLY}|g" config.production.json
-sed -i "s|DBUSER_PLACEHOLDER|$${DB_USERNAME}|g" config.production.json
-sed -i "s|DBPASS_PLACEHOLDER|$${DB_PASSWORD}|g" config.production.json
-sed -i "s|DBNAME_PLACEHOLDER|$${DB_NAME}|g" config.production.json
-sed -i "s|SESREGION_PLACEHOLDER|$${SES_REGION}|g" config.production.json
-sed -i "s|SESFROM_PLACEHOLDER|$${SES_FROM_EMAIL}|g" config.production.json
-sed -i "s|S3BUCKET_PLACEHOLDER|$${S3_BUCKET}|g" config.production.json
-sed -i "s|S3REGION_PLACEHOLDER|$${S3_REGION}|g" config.production.json
-sed -i "s|CDNURL_PLACEHOLDER|$${CLOUDFRONT_URL}|g" config.production.json
-
-# SES SMTP from Secrets Manager (affine-secrets: ses_smtp_username, ses_smtp_password)
-SES_JSON=$(aws secretsmanager get-secret-value --secret-id "$${SES_CREDENTIALS_SECRET_NAME}" --region "$${SES_CREDENTIALS_SECRET_REGION}" --query SecretString --output text 2>/dev/null || echo "{}")
-if command -v jq &>/dev/null; then
-  SES_USER=$(echo "$${SES_JSON}" | jq -r '.ses_smtp_username // empty')
-  SES_PASS=$(echo "$${SES_JSON}" | jq -r '.ses_smtp_password // empty')
-  jq --arg u "$${SES_USER}" --arg p "$${SES_PASS}" '.mail.options.auth.user = $u | .mail.options.auth.pass = $p' config.production.json > config.production.json.tmp && mv config.production.json.tmp config.production.json
-else
-  sed -i 's|SESUSER_PLACEHOLDER|""|g; s|SESPASS_PLACEHOLDER|""|g' config.production.json
-fi
+# DB password and SES auth from secret (jq so special chars in password don't break JSON)
+jq --arg p "$${DB_PASSWORD}" '.database.connection.password = $p' config.production.json > config.production.json.tmp && mv config.production.json.tmp config.production.json
+jq --arg u "$${SES_USER}" --arg p "$${SES_PASS}" '.mail.options.auth.user = $u | .mail.options.auth.pass = $p' config.production.json > config.production.json.tmp && mv config.production.json.tmp config.production.json
 
 # Docker Compose: Ghost + Redis
 cat > docker-compose.yml << 'COMPOSE'
 services:
   ghost:
-    image: ghost:5-alpine
+    image: ghost:${ghost_version}-alpine
     restart: unless-stopped
+    command: ["node", "current/index.js"]
     environment:
       NODE_ENV: production
-      url: https://DOMAIN_PLACEHOLDER
+      url: https://${domain_name}
     volumes:
       - ./config.production.json:/var/lib/ghost/config.production.json
       - ghost-content:/var/lib/ghost/content
@@ -163,20 +161,50 @@ volumes:
   ghost-content:
   redis-data:
 COMPOSE
-sed -i "s|DOMAIN_PLACEHOLDER|$${DOMAIN_NAME}|g" docker-compose.yml
 
-# Caddy reverse proxy (optional - if not using ALB)
-dnf install -y caddy 2>/dev/null || true
-if command -v caddy &>/dev/null; then
-  echo ":80 { reverse_proxy localhost:2368 }" > /etc/caddy/Caddyfile
-  systemctl enable caddy
-  systemctl start caddy 2>/dev/null || true
+# Caddy reverse proxy on port 80 (static binary – works on AL2023 without extra repos)
+CADDY_VERSION="2.7.6"
+if ! command -v caddy &>/dev/null; then
+  curl -L "https://github.com/caddyserver/caddy/releases/download/v$${CADDY_VERSION}/caddy_$${CADDY_VERSION}_linux_amd64.tar.gz" -o /tmp/caddy.tar.gz
+  tar -xzf /tmp/caddy.tar.gz -C /usr/bin caddy
+  rm /tmp/caddy.tar.gz
+  chmod +x /usr/bin/caddy
+  groupadd --system caddy 2>/dev/null || true
+  useradd --system --gid caddy --shell /usr/sbin/nologin caddy 2>/dev/null || true
+  mkdir -p /etc/caddy
+  mkdir -p /var/lib/caddy
+  chown -R caddy:caddy /var/lib/caddy
+  cat > /etc/systemd/system/caddy.service << 'CADDYUNIT'
+[Unit]
+Description=Caddy reverse proxy
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+Restart=on-failure
+User=caddy
+Group=caddy
+Environment=HOME=/var/lib/caddy
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+CADDYUNIT
+  systemctl daemon-reload
 fi
+# Serve domain with automatic HTTPS (Let's Encrypt). Requires ports 80 (ACME + redirect) and 443 (HTTPS).
+cat > /etc/caddy/Caddyfile << 'CADDYEOF'
+${domain_name} {
+    reverse_proxy localhost:2368
+}
+CADDYEOF
+systemctl enable caddy
+systemctl start caddy
 
 cd /opt/ghost
-sudo docker-compose up -d
-
-# Install S3 storage adapter into the content volume and fix permissions
+# Install S3 storage adapter before starting Ghost (Ghost requires adapter present when storage.active is s3)
 sudo docker-compose run --rm ghost sh -c '\
   set -e; \
   mkdir -p /var/lib/ghost/content/adapters/storage; \
@@ -184,12 +212,7 @@ sudo docker-compose run --rm ghost sh -c '\
   npm install --silent ghost-storage-adapter-s3; \
   rm -rf s3; \
   cp -r node_modules/ghost-storage-adapter-s3 ./s3; \
-  chown -R node:node /var/lib/ghost/content; \
-  if [ -d /var/lib/ghost/versions ]; then \
-    for d in /var/lib/ghost/versions/*; do \
-      [ -d "$d" ] || continue; \
-      rm -rf "$d/content"; \
-      ln -s /var/lib/ghost/content "$d/content"; \
-    done; \
-  fi \
+  cd s3 && npm install --production --silent && cd ..; \
+  chown -R node:node /var/lib/ghost/content \
 '
+sudo docker-compose up -d
