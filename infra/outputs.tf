@@ -58,7 +58,7 @@ output "ghost_admin_url" {
 # SSH key in Secrets Manager (retrieve when you need to SSH)
 output "ec2_ssh_key_path" {
   description = "Path to SSH private key (created by Terraform at apply; gitignored)"
-  value       = "${path.module}/ghost-key.pem"
+  value       = "${path.module}/${var.project_name}-${var.environment}.pem"
 }
 
 output "ec2_ssh_key_secret_name" {
@@ -67,16 +67,11 @@ output "ec2_ssh_key_secret_name" {
 }
 
 output "ssh_connect_command" {
-  description = "Command to SSH to EC2 (run from infra/; key is at ghost-key.pem after apply)"
-  value       = "ssh -i ghost-key.pem ec2-user@${aws_eip.ghost.public_ip}"
+  description = "Command to SSH to EC2 (run from infra/; key is at {project_name}-{environment}.pem after apply)"
+  value       = "ssh -i ${var.project_name}-${var.environment}.pem ec2-user@${aws_eip.ghost.public_ip}"
 }
 
 # Database Password Location
-output "db_password_ssm_path" {
-  description = "SSM Parameter Store path for database password"
-  value       = aws_ssm_parameter.db_password.name
-}
-
 # Next Steps
 output "next_steps" {
   description = "Next steps after deployment"
@@ -92,8 +87,8 @@ output "next_steps" {
 
     2. Wait for DNS propagation (5-30 minutes)
 
-    3. Connect via SSH (from infra/; key at ghost-key.pem after apply):
-       ssh -i ghost-key.pem ec2-user@${aws_eip.ghost.public_ip}
+    3. Connect via SSH:
+       ssh -i ${var.project_name}-${var.environment}.pem ec2-user@${aws_eip.ghost.public_ip}
 
     4. Check Ghost status:
        sudo docker compose -f /opt/ghost/docker-compose.yml logs -f

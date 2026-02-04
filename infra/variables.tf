@@ -32,9 +32,9 @@ variable "ec2_instance_type" {
 }
 
 variable "ec2_volume_size" {
-  description = "Root volume size in GB"
+  description = "Root volume size in GB (must be >= 30 for Amazon Linux 2023 AMI)"
   type        = number
-  default     = 20
+  default     = 30
 }
 
 # RDS Configuration
@@ -60,6 +60,12 @@ variable "db_username" {
   description = "Database master username"
   type        = string
   default     = "ghost_admin"
+}
+
+variable "db_password" {
+  description = "Database master password (stored in Secrets Manager; used for RDS and EC2 bootstrapping)"
+  type        = string
+  sensitive   = true
 }
 
 # S3 Configuration
@@ -105,7 +111,7 @@ variable "allowed_ssh_cidrs" {
 
 # Ghost Configuration
 variable "ghost_version" {
-  description = "Ghost version to deploy"
+  description = "Ghost version to deploy (Docker image tag, e.g. 6.16.1 or 6)"
   type        = string
-  default     = "5" # Latest Ghost 5.x
+  default     = "6.16.1"
 }

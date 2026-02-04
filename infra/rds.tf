@@ -4,16 +4,16 @@ resource "aws_db_instance" "ghost" {
   identifier = "${var.project_name}-db"
 
   # Engine
-  engine               = "mysql"
-  engine_version       = "8.0"
-  instance_class       = var.db_instance_class
-  allocated_storage    = var.db_allocated_storage
+  engine                = "mysql"
+  engine_version        = "8.0"
+  instance_class        = var.db_instance_class
+  allocated_storage     = var.db_allocated_storage
   max_allocated_storage = 100 # Enable autoscaling up to 100GB
 
   # Database
   db_name  = var.db_name
   username = var.db_username
-  password = random_password.db_password.result
+  password = var.db_password
 
   # Network
   db_subnet_group_name   = aws_db_subnet_group.main.name
@@ -72,8 +72,8 @@ resource "aws_db_parameter_group" "ghost" {
   }
 
   parameter {
-    name  = "innodb_buffer_pool_size"
-    value = "{DBInstanceClassMemory*3/4}"
+    name         = "innodb_buffer_pool_size"
+    value        = "{DBInstanceClassMemory*3/4}"
     apply_method = "pending-reboot"
   }
 

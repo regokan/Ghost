@@ -52,22 +52,3 @@ provider "aws" {
     }
   }
 }
-
-# Random password for RDS
-resource "random_password" "db_password" {
-  length           = 32
-  special          = true
-  override_special = "!#$%&*()-_=+[]{}<>:?"
-}
-
-# Store DB password in SSM Parameter Store
-resource "aws_ssm_parameter" "db_password" {
-  name        = "/${var.project_name}/${var.environment}/db-password"
-  description = "Ghost database password"
-  type        = "SecureString"
-  value       = random_password.db_password.result
-
-  tags = {
-    Name = "${var.project_name}-db-password"
-  }
-}

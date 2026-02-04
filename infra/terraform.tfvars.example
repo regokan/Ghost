@@ -13,7 +13,7 @@ domain_name = "blog.example.com"  # Your blog domain (DNS managed elsewhere, e.g
 
 # EC2 Configuration (key pair created by Terraform, private key in Secrets Manager)
 ec2_instance_type = "t3.small"  # 2 vCPU, 2GB RAM
-ec2_volume_size   = 20  # GB
+ec2_volume_size   = 30  # GB (min 30 for Amazon Linux 2023 AMI)
 
 # Allow SSH from your IP (optional - SSM Session Manager is available regardless)
 # Find your IP: curl ifconfig.me
@@ -24,6 +24,7 @@ db_instance_class    = "db.t4g.micro"  # 2 vCPU, 1GB RAM - cheapest with 2 vCPU
 db_allocated_storage = 20  # GB
 db_name              = "ghost"
 db_username          = "ghost_admin"
+db_password          = "CHANGE_ME" # strong password; stored in Secrets Manager at {project_name}/{environment}/db-credentials
 
 # S3 Configuration (bucket name must be globally unique)
 s3_bucket_name = "ghost-blog-content-your-unique-id"
@@ -37,4 +38,4 @@ ses_credentials_secret_name   = "aws-secrets"
 ses_credentials_secret_region = "us-east-1"
 
 # Ghost Configuration
-ghost_version = "5"
+ghost_version = "6.16.1"
