@@ -8,6 +8,16 @@ resource "aws_s3_bucket" "content" {
   }
 }
 
+# Ownership controls: allow ACLs (required by S3 storage adapter), but keep bucket private via policies
+resource "aws_s3_bucket_ownership_controls" "content" {
+  bucket = aws_s3_bucket.content.id
+
+  rule {
+    # Allows ACLs while keeping bucket-owner preferred; avoids BucketOwnerEnforced (which disables ACLs entirely)
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
 # Block public access (CloudFront will serve content)
 resource "aws_s3_bucket_public_access_block" "content" {
   bucket = aws_s3_bucket.content.id

@@ -56,13 +56,20 @@ resource "aws_instance" "ghost" {
     ghost_version                 = var.ghost_version
     db_credentials_secret_name    = aws_secretsmanager_secret.db_credentials.name
     db_credentials_secret_region  = var.aws_region
+    s3_credentials_secret_name    = aws_secretsmanager_secret.s3_credentials.name
+    s3_credentials_secret_region  = var.aws_region
   })
 
   tags = {
     Name = "${var.project_name}-ec2"
   }
 
-  depends_on = [aws_db_instance.ghost, aws_key_pair.ghost, aws_secretsmanager_secret_version.db_credentials]
+  depends_on = [
+    aws_db_instance.ghost,
+    aws_key_pair.ghost,
+    aws_secretsmanager_secret_version.db_credentials,
+    aws_secretsmanager_secret_version.s3_credentials
+  ]
 }
 
 # Elastic IP for consistent public IP

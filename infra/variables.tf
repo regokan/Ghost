@@ -74,6 +74,18 @@ variable "s3_bucket_name" {
   type        = string
 }
 
+variable "s3_access_key_id" {
+  description = "AWS access key ID for S3 uploads (IAM user with access limited to the Ghost content bucket)"
+  type        = string
+  sensitive   = true
+}
+
+variable "s3_secret_access_key" {
+  description = "AWS secret access key for S3 uploads (matches s3_access_key_id; stored in Secrets Manager)"
+  type        = string
+  sensitive   = true
+}
+
 # Email Configuration
 variable "ses_region" {
   description = "AWS region for SES (where SES is configured)"

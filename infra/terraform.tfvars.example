@@ -29,6 +29,10 @@ db_password          = "CHANGE_ME" # strong password; stored in Secrets Manager 
 # S3 Configuration (bucket name must be globally unique)
 s3_bucket_name = "ghost-blog-content-your-unique-id"
 
+# S3 upload credentials (IAM user with access limited to the Ghost content bucket)
+s3_access_key_id     = "CHANGE_ME_ACCESS_KEY_ID"
+s3_secret_access_key = "CHANGE_ME_SECRET_ACCESS_KEY"
+
 # Email Configuration (SES)
 ses_region     = "us-east-1"
 ses_from_email = "noreply@example.com"  # Must be verified in SES

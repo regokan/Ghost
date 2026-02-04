@@ -156,6 +156,23 @@ resource "aws_iam_role_policy" "ec2_secrets_db" {
   })
 }
 
+# Secrets Manager: read S3 credentials (Terraform-created secret)
+resource "aws_iam_role_policy" "ec2_secrets_s3" {
+  name = "${var.project_name}-ec2-secrets-s3-policy"
+  role = aws_iam_role.ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = aws_secretsmanager_secret.s3_credentials.arn
+      }
+    ]
+  })
+}
+
 # SSM Session Manager (for secure shell access without SSH)
 resource "aws_iam_role_policy_attachment" "ec2_ssm_managed" {
   role       = aws_iam_role.ec2.name

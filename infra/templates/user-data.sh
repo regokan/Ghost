@@ -12,6 +12,8 @@ DB_CREDENTIALS_SECRET_NAME="${db_credentials_secret_name}"
 DB_CREDENTIALS_SECRET_REGION="${db_credentials_secret_region}"
 SES_CREDENTIALS_SECRET_NAME="${ses_credentials_secret_name}"
 SES_CREDENTIALS_SECRET_REGION="${ses_credentials_secret_region}"
+S3_CREDENTIALS_SECRET_NAME="${s3_credentials_secret_name}"
+S3_CREDENTIALS_SECRET_REGION="${s3_credentials_secret_region}"
 
 # System update and Docker
 dnf update -y
@@ -67,6 +69,23 @@ fi
 SES_USER=$(echo "$${SMTP_SECRET_JSON}" | jq -r '.ses_smtp_username // empty')
 SES_PASS=$(echo "$${SMTP_SECRET_JSON}" | jq -r '.ses_smtp_password // empty')
 
+# S3 credentials secret JSON (keys: accessKeyId, secretAccessKey)
+S3_SECRET_JSON=""
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  S3_SECRET_JSON=$(aws secretsmanager get-secret-value \
+    --secret-id "$${S3_CREDENTIALS_SECRET_NAME}" \
+    --region "$${S3_CREDENTIALS_SECRET_REGION}" \
+    --query SecretString --output text 2>/dev/null) && break
+  echo "Waiting for Secrets Manager S3 credentials (attempt $i/10)..."
+  sleep 15
+done
+if [ -z "$${S3_SECRET_JSON}" ] || [ "$${S3_SECRET_JSON}" = "null" ]; then
+  echo "ERROR: Could not get S3 credentials secret from Secrets Manager. Check IAM and secret name."
+  exit 1
+fi
+S3_ACCESS_KEY_ID=$(echo "$${S3_SECRET_JSON}" | jq -r '.accessKeyId // empty')
+S3_SECRET_ACCESS_KEY=$(echo "$${S3_SECRET_JSON}" | jq -r '.secretAccessKey // empty')
+
 mkdir -p /opt/ghost
 cd /opt/ghost
 
@@ -102,7 +121,9 @@ cat > config.production.json << 'GHOSTCONF'
     "s3": {
       "bucket": "${s3_bucket}",
       "region": "${s3_region}",
-      "cdnUrl": "${cloudfront_url}",
+      "accessKeyId": "",
+      "secretAccessKey": "",
+      "assetHost": "${cloudfront_url}",
       "staticFileURLPrefix": "content/images",
       "multipartUploadThresholdBytes": 5242880,
       "multipartChunkSizeBytes": 5242880
@@ -111,7 +132,7 @@ cat > config.production.json << 'GHOSTCONF'
       "adapter": "s3",
       "bucket": "${s3_bucket}",
       "region": "${s3_region}",
-      "cdnUrl": "${cloudfront_url}",
+      "assetHost": "${cloudfront_url}",
       "staticFileURLPrefix": "content/media",
       "multipartUploadThresholdBytes": 5242880,
       "multipartChunkSizeBytes": 5242880
@@ -120,7 +141,7 @@ cat > config.production.json << 'GHOSTCONF'
       "adapter": "s3",
       "bucket": "${s3_bucket}",
       "region": "${s3_region}",
-      "cdnUrl": "${cloudfront_url}",
+      "assetHost": "${cloudfront_url}",
       "staticFileURLPrefix": "content/files",
       "multipartUploadThresholdBytes": 5242880,
       "multipartChunkSizeBytes": 5242880
@@ -130,9 +151,10 @@ cat > config.production.json << 'GHOSTCONF'
 }
 GHOSTCONF
 
-# DB password and SES auth from secret (jq so special chars in password don't break JSON)
+# DB password, SES auth, and S3 credentials from secrets (jq so special chars in secrets don't break JSON)
 jq --arg p "$${DB_PASSWORD}" '.database.connection.password = $p' config.production.json > config.production.json.tmp && mv config.production.json.tmp config.production.json
 jq --arg u "$${SES_USER}" --arg p "$${SES_PASS}" '.mail.options.auth.user = $u | .mail.options.auth.pass = $p' config.production.json > config.production.json.tmp && mv config.production.json.tmp config.production.json
+jq --arg ak "$${S3_ACCESS_KEY_ID}" --arg sk "$${S3_SECRET_ACCESS_KEY}" '.storage.s3.accessKeyId = $ak | .storage.s3.secretAccessKey = $sk' config.production.json > config.production.json.tmp && mv config.production.json.tmp config.production.json
 
 # Docker Compose: Ghost + Redis
 cat > docker-compose.yml << 'COMPOSE'
@@ -144,6 +166,7 @@ services:
     environment:
       NODE_ENV: production
       url: https://${domain_name}
+      GHOST_STORAGE_ADAPTER_S3_ACL: private
     volumes:
       - ./config.production.json:/var/lib/ghost/config.production.json
       - ghost-content:/var/lib/ghost/content
