@@ -238,4 +238,18 @@ sudo docker-compose run --rm ghost sh -c '\
   cd s3 && npm install --production --silent && cd ..; \
   chown -R node:node /var/lib/ghost/content \
 '
+
+# Restore the active Solo theme into the content volume. Themes are local files, so
+# EC2 replacement otherwise leaves the database pointing at a missing theme.
+rm -rf /tmp/Solo-main /tmp/solo-main.zip
+curl -L "https://github.com/TryGhost/Solo/archive/main.zip" -o /tmp/solo-main.zip
+unzip -q /tmp/solo-main.zip -d /tmp
+sudo docker-compose run --rm -v /tmp/Solo-main:/tmp/solo-src:ro ghost sh -c '\
+  set -e; \
+  rm -rf /var/lib/ghost/content/themes/solo; \
+  mkdir -p /var/lib/ghost/content/themes; \
+  cp -a /tmp/solo-src /var/lib/ghost/content/themes/solo; \
+  node -e "const fs=require(\"fs\"); const p=\"/var/lib/ghost/content/themes/solo/default.hbs\"; let s=fs.readFileSync(p,\"utf8\"); s=s.replace(/\\{\\{#social_accounts @site\\}\\}[\\s\\S]*?\\{\\{\\/social_accounts\\}\\}/, \"{{#if @site.facebook}}\\n                        <a href=\\\"{{facebook_url @site.facebook}}\\\" target=\\\"_blank\\\" rel=\\\"noopener\\\" aria-label=\\\"Facebook\\\">{{> \\\"icons/facebook\\\"}}</a>\\n                    {{/if}}\\n                    {{#if @site.twitter}}\\n                        <a href=\\\"{{twitter_url @site.twitter}}\\\" target=\\\"_blank\\\" rel=\\\"noopener\\\" aria-label=\\\"X\\\">{{> \\\"icons/x\\\"}}</a>\\n                    {{/if}}\"); fs.writeFileSync(p,s);"; \
+  chown -R node:node /var/lib/ghost/content/themes/solo \
+'
 sudo docker-compose up -d
