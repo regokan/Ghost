@@ -42,4 +42,4 @@ ses_credentials_secret_name   = "aws-secrets"
 ses_credentials_secret_region = "us-east-1"
 
 # Ghost Configuration
-ghost_version = "6.16.1"
+ghost_version = "6.27.0"
