@@ -123,7 +123,7 @@ variable "allowed_ssh_cidrs" {
 
 # Ghost Configuration
 variable "ghost_version" {
-  description = "Ghost version to deploy (Docker image tag, e.g. 6.27.0 or 6)"
+  description = "Ghost version to deploy (Docker image tag, e.g. 6.19.1 or 6)"
   type        = string
-  default     = "6.27.0"
+  default     = "6.19.1"
 }
